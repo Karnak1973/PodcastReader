@@ -26,7 +26,8 @@ jobs:
       - name: Dar permisos de ejecución a Gradle
         run: chmod +x gradlew
 
-      - name: Configurar caché y ejecutar Build + Tests
+      - name: Configurar Gradle y caché
         uses: gradle/actions/setup-gradle@v4
-        with:
-          arguments: build --stacktrace
+
+      - name: Ejecutar Build y Tests
+        run: ./gradlew build --stacktrace
