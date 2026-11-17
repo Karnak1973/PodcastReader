@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="0"
+        android:translateY="2">
+        <!-- Audio waves radiating from the book -->
+        <path
+            android:fillColor="#90CAF9"
+            android:pathData="M38,36 A18,18 0 0,1 70,36"
+            android:strokeWidth="3.5"
+            android:strokeColor="#90CAF9"
+            android:strokeLineCap="round" />
+        <path
+            android:fillColor="#CE93D8"
+            android:pathData="M44,42 A11,11 0 0,1 64,42"
+            android:strokeWidth="3"
+            android:strokeColor="#CE93D8"
+            android:strokeLineCap="round" />
+        <path
+            android:fillColor="#64B5F6"
+            android:pathData="M50,47 A5,5 0 0,1 58,47"
+            android:strokeWidth="2.5"
+            android:strokeColor="#64B5F6"
+            android:strokeLineCap="round" />
+
+        <!-- Open Book Left Page -->
+        <path
+            android:fillColor="#2196F3"
+            android:pathData="M54,58 C47,54 36,53 28,55 L28,77 C36,75 47,76 54,80 Z" />
+
+        <!-- Open Book Right Page -->
+        <path
+            android:fillColor="#64B5F6"
+            android:pathData="M54,58 C61,54 72,53 80,55 L80,77 C72,75 61,76 54,80 Z" />
+
+        <!-- Spine / Center Highlight -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M53.2,57 L54.8,57 L54.8,81 L53.2,81 Z" />
+
+        <!-- Podcast sound pill / Microphone dot -->
+        <path
+            android:fillColor="#CE93D8"
+            android:pathData="M54,49 m-3,0 a3,3 0 1,1 6,0 a3,3 0 1,1 -6,0" />
+    </group>
+</vector>
