@@ -198,7 +198,12 @@ fun SettingsDialog(
                     FilterChip(
                         selected = ttsProvider == TtsProviderType.ANDROID_LOCAL,
                         onClick = { ttsProvider = TtsProviderType.ANDROID_LOCAL },
-                        label = { Text("Local") }
+                        label = { Text("Local (Android)") }
+                    )
+                    FilterChip(
+                        selected = ttsProvider == TtsProviderType.SHERPA_ONNX_LOCAL,
+                        onClick = { ttsProvider = TtsProviderType.SHERPA_ONNX_LOCAL },
+                        label = { Text("Sherpa-ONNX (español offline)" ) }
                     )
                     FilterChip(
                         selected = ttsProvider == TtsProviderType.GEMINI_TTS,

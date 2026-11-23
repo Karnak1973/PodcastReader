@@ -1,0 +1,3 @@
+# Directorio del modelo de voz Piper para Sherpa-ONNX.
+# Coloca aquí es_ES-davefx-medium.onnx, tokens.txt y espeak-ng-data/
+# (ver README.md). Los binarios grandes no se versionan.

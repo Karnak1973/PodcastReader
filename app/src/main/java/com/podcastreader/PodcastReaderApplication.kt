@@ -13,6 +13,7 @@ import com.podcastreader.data.tts.AndroidTtsEngine
 import com.podcastreader.data.tts.AudioChunkCacheManager
 import com.podcastreader.data.tts.CloudTtsEngine
 import com.podcastreader.data.tts.CompositeTtsEngine
+import com.podcastreader.data.tts.SherpaOnnxTtsEngine
 import com.podcastreader.domain.chunking.BookSemanticChunker
 import com.podcastreader.domain.parser.BookParser
 import com.podcastreader.domain.podcast.PodcastDialogueGenerator
@@ -32,6 +33,8 @@ class PodcastReaderApplication : Application() {
     lateinit var bookLibraryStore: BookLibraryStore
         private set
     lateinit var androidTtsEngine: AndroidTtsEngine
+        private set
+    lateinit var sherpaTtsEngine: SherpaOnnxTtsEngine
         private set
     lateinit var ttsEngine: TtsEngine
         private set
@@ -56,8 +59,14 @@ class PodcastReaderApplication : Application() {
         bookLibraryStore = BookLibraryStore(this)
 
         androidTtsEngine = AndroidTtsEngine(this)
+        sherpaTtsEngine = SherpaOnnxTtsEngine(this)
         val cloudTtsEngine = CloudTtsEngine()
-        ttsEngine = CompositeTtsEngine(androidTtsEngine, cloudTtsEngine, apiSettingsDataStore)
+        ttsEngine = CompositeTtsEngine(
+            androidTtsEngine,
+            sherpaTtsEngine,
+            cloudTtsEngine,
+            apiSettingsDataStore
+        )
 
         chunkCacheManager = AudioChunkCacheManager(this, ttsEngine, apiSettingsDataStore)
 

@@ -17,6 +17,13 @@ android {
         versionName = "0.1.0-mvp"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            // Filtra arquitecturas para no inflar el APK innecesariamente.
+            // Sherpa-ONNX solo se distribuye para arm64-v8a en móviles modernos;
+            // x86_64 se conserva para emuladores de desarrollo.
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
 
     buildTypes {
@@ -80,6 +87,11 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.guava)
     implementation(libs.jsoup)
+
+    // Sherpa-ONNX (TTS offline, modelo Piper en español).
+    // Coloca el archivo descargado de k2-fsa/sherpa-onnx/releases en app/libs/,
+    // por ejemplo app/libs/sherpa-onnx-2.0.3.aar (ajusta el nombre al release descargado).
+    implementation(files("libs/sherpa-onnx-2.0.3.aar"))
 
     // Unit Testing
     testImplementation(libs.junit)

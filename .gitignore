@@ -16,3 +16,11 @@ local.properties
 app/build/
 *.apk
 *.aab
+
+# Modelos de voz Sherpa-ONNX (binarios grandes, no versionar)
+app/src/main/assets/tts-model/*.onnx
+app/src/main/assets/tts-model/*.json
+app/src/main/assets/tts-model/espeak-ng-data/
+
+# Librería nativa Sherpa-ONNX (descargar por separado de k2-fsa/sherpa-onnx/releases)
+app/libs/*.aar

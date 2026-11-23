@@ -41,7 +41,8 @@ class CloudTtsEngine {
                     voiceName = voiceOverride ?: settings.cloudVoiceName.ifBlank { "nova" }
                 )
 
-                TtsProviderType.ANDROID_LOCAL -> error("CloudTtsEngine llamado en modo local")
+                TtsProviderType.ANDROID_LOCAL, TtsProviderType.SHERPA_ONNX_LOCAL ->
+                    error("CloudTtsEngine llamado en modo local o Sherpa-ONNX")
             }
         }
     }

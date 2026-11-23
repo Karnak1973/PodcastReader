@@ -15,6 +15,7 @@ private val Context.apiSettingsDataStore: DataStore<Preferences> by preferencesD
 
 enum class TtsProviderType {
     ANDROID_LOCAL,
+    SHERPA_ONNX_LOCAL, // Sherpa-ONNX offline con modelo Piper en español (assets/tts-model/)
     GEMINI_TTS,
     OPENAI_TTS
 }
