@@ -2,6 +2,7 @@ package com.podcastreader.ui
 
 import android.app.Application
 import android.content.Intent
+import android.media.MediaPlayer
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
@@ -10,6 +11,7 @@ import com.podcastreader.PodcastReaderApplication
 import com.podcastreader.data.local.AiProviderType
 import com.podcastreader.data.local.AppSettings
 import com.podcastreader.data.local.LibraryBookEntry
+import com.podcastreader.data.local.TtsProviderType
 import com.podcastreader.data.rag.BookIndexingRegistry
 import com.podcastreader.data.rag.FetchedModels
 import com.podcastreader.data.rag.IndexingProgress
@@ -56,7 +58,9 @@ data class MainScreenState(
     val settings: AppSettings = AppSettings(),
     val localVoices: List<TtsVoiceOption> = emptyList(),
     val modelsState: ModelsFetchState = ModelsFetchState(),
-    val sherpaTtsReady: Boolean = false
+    val sherpaTtsReady: Boolean = false,
+    val sherpaTtsLoading: Boolean = false,
+    val sherpaTtsError: String? = null
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -73,6 +77,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _sherpaTestMessage = MutableStateFlow<String?>(null)
     val sherpaTestMessage: StateFlow<String?> = _sherpaTestMessage.asStateFlow()
     private var wasPlayingBeforeVoice = false
+    private var testMediaPlayer: MediaPlayer? = null
 
     private data class BookLoadState(
         val book: Book? = null,
@@ -81,13 +86,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val showCoverScreen: Boolean = false
     )
 
+    private data class SherpaUiState(
+        val isReady: Boolean = false,
+        val isLoading: Boolean = false,
+        val lastError: String? = null
+    )
+
+    private val sherpaStateFlow = combine(
+        app.sherpaTtsEngine.isReadyFlow,
+        app.sherpaTtsEngine.isLoadingFlow,
+        app.sherpaTtsEngine.lastErrorFlow
+    ) { ready, loading, error ->
+        SherpaUiState(isReady = ready, isLoading = loading, lastError = error)
+    }
+
     val uiState: StateFlow<MainScreenState> = combine(
-        combine(_bookState, _modelsState) { bookLoad, models -> bookLoad to models },
+        combine(_bookState, _modelsState, sherpaStateFlow) { bookLoad, models, sherpa ->
+            Triple(bookLoad, models, sherpa)
+        },
         playbackController.uiState,
         BookIndexingRegistry.progress,
         voiceManager.state,
         app.apiSettingsDataStore.settingsFlow
-    ) { (bookLoad, modelsState), playback, indexing, voice, settings ->
+    ) { (bookLoad, modelsState, sherpaState), playback, indexing, voice, settings ->
         MainScreenState(
             book = bookLoad.book,
             isLoading = bookLoad.isLoading,
@@ -100,7 +121,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             settings = settings,
             localVoices = _localVoices.value,
             modelsState = modelsState,
-            sherpaTtsReady = app.sherpaTtsEngine.isReady
+            sherpaTtsReady = sherpaState.isReady,
+            sherpaTtsLoading = sherpaState.isLoading,
+            sherpaTtsError = sherpaState.lastError
         )
     }.stateIn(
         scope = viewModelScope,
@@ -113,6 +136,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         restoreLastBook()
         refreshLocalVoices()
         observePlaybackForLibrary()
+        viewModelScope.launch {
+            val initialSettings = app.apiSettingsDataStore.settingsFlow.firstOrNull()
+            if (initialSettings?.ttsProvider == TtsProviderType.SHERPA_ONNX_LOCAL) {
+                app.sherpaTtsEngine.initialize()
+            }
+        }
     }
 
     private fun refreshLibrary() {
@@ -414,6 +443,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun saveSettings(settings: AppSettings) {
         viewModelScope.launch {
             app.apiSettingsDataStore.saveSettings(settings)
+            if (settings.ttsProvider == TtsProviderType.SHERPA_ONNX_LOCAL && !app.sherpaTtsEngine.isReady) {
+                app.sherpaTtsEngine.initialize()
+            }
         }
     }
 
@@ -460,32 +492,57 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return bytes.take(8).joinToString("") { "%02x".format(it) }
     }
 
-    /** Limpia el mensaje de prueba de Sherpa-ONNX tras mostrarlo en snackbar. */
+    /** Limpia el mensaje de prueba de Sherpa-ONNX tras mostrarlo en diálogo. */
     fun clearSherpaTestMessage() {
         _sherpaTestMessage.value = null
     }
 
-    /** Prueba Sherpa-ONNX sintetizando una frase corta y devuelve el resultado por snackbar. */
-    fun testSherpaTts() {
+    /** Inicializa Sherpa-ONNX en segundo plano al seleccionarlo en los ajustes. */
+    fun inicializarSherpa() {
         viewModelScope.launch {
             if (!app.sherpaTtsEngine.isReady) {
-                val error = app.sherpaTtsEngine.lastInitError
-                _sherpaTestMessage.value = if (error != null) {
-                    "❌ Sherpa-ONNX no se pudo inicializar:\n$error\n\nCausas comunes:\n• Falta es_ES-davefx-medium.onnx en assets/tts-model/\n• Falta tokens.txt en assets/tts-model/\n• La carpeta espeak-ng-data/ está vacía o incompleta\n• El archivo .aar no está en app/libs/"
-                } else {
-                    "❌ Sherpa-ONNX no está inicializado. Selecciona 'Sherpa-ONNX (español offline)' en los ajustes y espera a que cargue el modelo."
-                }
+                app.sherpaTtsEngine.initialize()
+            }
+        }
+    }
+
+    /** Prueba Sherpa-ONNX inicializando el motor si hace falta, sintetizando una frase corta y reproduciéndola. */
+    fun testSherpaTts() {
+        viewModelScope.launch {
+            val initialized = if (app.sherpaTtsEngine.isReady) {
+                true
+            } else {
+                app.sherpaTtsEngine.initialize()
+            }
+
+            if (!initialized || !app.sherpaTtsEngine.isReady) {
+                val error = app.sherpaTtsEngine.lastInitError ?: "Error desconocido"
+                _sherpaTestMessage.value = "❌ No se pudo inicializar Sherpa-ONNX:\n$error"
                 return@launch
             }
+
             val testFile = File(app.cacheDir, "sherpa_test_${System.currentTimeMillis()}.wav")
-            val result = app.ttsEngine.synthesizeToFile(
-                text = "Hola, esta es una prueba de Sherpa ONNX con el modelo Piper en español.",
+            val result = app.sherpaTtsEngine.synthesizeToFile(
+                text = "Hola, esta es una prueba de lectura offline con Sherpa ONNX en español.",
                 outputFile = testFile,
                 voiceConfig = VoiceConfig(languageTag = "es-ES", rate = 1.0f)
             )
-            _sherpaTestMessage.value = when {
-                result.isSuccess -> "✅ Sherpa-ONNX funcionando: ${testFile.length()} bytes de audio generados."
-                else -> "❌ Error Sherpa-ONNX: ${result.exceptionOrNull()?.message ?: "desconocido"}"
+            result.onSuccess { wavFile ->
+                runCatching {
+                    testMediaPlayer?.release()
+                    testMediaPlayer = MediaPlayer().apply {
+                        setDataSource(wavFile.absolutePath)
+                        setOnCompletionListener { mp ->
+                            mp.release()
+                            if (testMediaPlayer === mp) testMediaPlayer = null
+                        }
+                        prepare()
+                        start()
+                    }
+                }
+                _sherpaTestMessage.value = "✅ Sherpa-ONNX funcionando correctamente (${wavFile.length()} bytes generados)."
+            }.onFailure { err ->
+                _sherpaTestMessage.value = "❌ Error al sintetizar con Sherpa-ONNX: ${err.message ?: err.toString()}"
             }
         }
     }

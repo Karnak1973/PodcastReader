@@ -45,7 +45,7 @@ class AudioChunkCacheManager(
             TtsProviderType.ANDROID_LOCAL ->
                 "local_${voiceConfig.voiceName ?: settings.androidVoiceName.ifBlank { "auto" }}"
             TtsProviderType.SHERPA_ONNX_LOCAL ->
-                "sherpa_${voiceConfig.voiceName ?: "es_ES-davefx-medium"}"
+                "sherpa_v2_${voiceConfig.voiceName ?: "es_ES-davefx-medium"}"
             TtsProviderType.GEMINI_TTS ->
                 "gemini_${voiceConfig.voiceName ?: settings.cloudVoiceName}"
             TtsProviderType.OPENAI_TTS ->

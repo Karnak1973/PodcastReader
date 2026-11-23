@@ -3,7 +3,9 @@ package com.podcastreader.playback
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import com.k2fsa.sherpa.onnx.GenerationConfig
 import com.k2fsa.sherpa.onnx.OfflineTts
+import com.podcastreader.data.tts.SpanishIpaPhonemizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -83,12 +85,19 @@ class AudiobookTtsPlayer(private val tts: OfflineTts) {
                 while (end != BreakIterator.DONE) {
                     val frase = parrafo.substring(start, end).trim()
                     if (frase.isNotEmpty()) {
-                        // Genera el audio neuronal de la frase (sid = 0, speed = 1.0f)
-                        val audio = tts.generate(text = frase, sid = 0, speed = 1.0f)
-                        audioTrack.write(audio.samples, 0, audio.samples.size, AudioTrack.WRITE_BLOCKING)
+                        val codepoints = SpanishIpaPhonemizer.textToIpaCodepoints(frase)
+                        if (codepoints.isNotEmpty()) {
+                            val genConfig = GenerationConfig(
+                                sid = 0,
+                                speed = 1.0f,
+                                phonemeCodepoints = arrayOf(codepoints)
+                            )
+                            val audio = tts.generateWithConfig(frase, genConfig)
+                            audioTrack.write(audio.samples, 0, audio.samples.size, AudioTrack.WRITE_BLOCKING)
 
-                        // Pausa de punto y seguido (450 ms de silencio exacto)
-                        escribirSilencio(audioTrack, sampleRate, duracionMs = pausaPuntoSeguidoMs)
+                            // Pausa de punto y seguido (450 ms de silencio exacto)
+                            escribirSilencio(audioTrack, sampleRate, duracionMs = pausaPuntoSeguidoMs)
+                        }
                     }
                     start = end
                     end = iterator.next()
@@ -176,7 +185,17 @@ class AudiobookTtsPlayer(private val tts: OfflineTts) {
                             // sin llamar a la red neuronal.
                             FloatArray((sampleRate * fp.pausaMs).toInt() / 1000)
                         } else {
-                            tts.generate(text = fp.frase, sid = 0, speed = 1.0f).samples
+                            val codepoints = SpanishIpaPhonemizer.textToIpaCodepoints(fp.frase)
+                            if (codepoints.isEmpty()) {
+                                FloatArray(0)
+                            } else {
+                                val genConfig = GenerationConfig(
+                                    sid = 0,
+                                    speed = 1.0f,
+                                    phonemeCodepoints = arrayOf(codepoints)
+                                )
+                                tts.generateWithConfig(fp.frase, genConfig).samples
+                            }
                         }
                         canal.send(AudioYResultado(muestras))
                     }

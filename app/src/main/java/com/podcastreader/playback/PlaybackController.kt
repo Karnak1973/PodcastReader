@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -44,6 +45,7 @@ class PlaybackController(
     private var mediaController: MediaController? = null
     private var currentBook: Book? = null
     private val queuedKeys = mutableSetOf<String>()
+    private var lastPrefetchKey: String? = null
 
     suspend fun connect() {
         if (mediaController != null) return
@@ -91,6 +93,7 @@ class PlaybackController(
 
             chunkCache.cancelPrefetch()
             queuedKeys.clear()
+            lastPrefetchKey = null
             _uiState.update {
                 it.copy(
                     isBuffering = true,
@@ -124,6 +127,13 @@ class PlaybackController(
             val firstItem = buildMediaItem(book, chapterIndex, paragraphIndex, firstFile)
             queuedKeys.add(itemKey(chapterIndex, paragraphIndex))
 
+            // Pre-encolar el inicio del prefetch antes de setMediaItem para que
+            // onMediaItemTransition no cancele ni duplique el prefetch del mismo párrafo.
+            val nextStart = paragraphIndex + 1
+            if (nextStart < chapter.paragraphs.size) {
+                lastPrefetchKey = itemKey(chapterIndex, nextStart)
+            }
+
             controller.setMediaItem(firstItem)
             controller.playbackParameters = PlaybackParameters(_uiState.value.playbackSpeed, 1.0f)
             controller.prepare()
@@ -133,12 +143,12 @@ class PlaybackController(
             persistProgress(book.id, chapterIndex, paragraphIndex, 0L)
 
             // Pre-sintetizar los siguientes 3 párrafos en segundo plano (Chunking Buffer)
-            if (paragraphIndex + 1 < chapter.paragraphs.size) {
+            if (nextStart < chapter.paragraphs.size) {
                 chunkCache.prefetchAhead(
                     scope = scope,
                     bookId = book.id,
                     chapter = chapter,
-                    fromParagraphIndex = paragraphIndex + 1,
+                    fromParagraphIndex = nextStart,
                     windowSize = 3
                 ) { nextPIdx, file ->
                     withContext(Dispatchers.Main.immediate) {
@@ -364,6 +374,10 @@ class PlaybackController(
             val chapter = book.chapters.getOrNull(chapterIdx) ?: return
             val nextStart = paraIdx + 1
             if (nextStart < chapter.paragraphs.size) {
+                val prefetchKey = itemKey(chapterIdx, nextStart)
+                if (lastPrefetchKey == prefetchKey) return
+                lastPrefetchKey = prefetchKey
+
                 chunkCache.prefetchAhead(
                     scope = scope,
                     bookId = book.id,
@@ -385,11 +399,31 @@ class PlaybackController(
             if (playbackState == Player.STATE_ENDED) {
                 val book = currentBook ?: return
                 val currentChapter = _uiState.value.currentChapterIndex
-                if (currentChapter + 1 < book.chapters.size) {
+                val currentPara = _uiState.value.currentParagraphIndex
+                val chapter = book.chapters.getOrNull(currentChapter)
+                if (_uiState.value.synthesisMode == SynthesisMode.LITERAL &&
+                    chapter != null &&
+                    currentPara + 1 < chapter.paragraphs.size
+                ) {
+                    // Si el párrafo actual terminó de reproducirse antes de que el prefetch
+                    // terminara de sintetizar el siguiente párrafo, continuar con el siguiente
+                    // párrafo del mismo capítulo en vez de saltar de capítulo.
+                    playFrom(currentChapter, currentPara + 1)
+                } else if (currentChapter + 1 < book.chapters.size) {
                     playFrom(currentChapter + 1, 0)
                 } else {
                     _uiState.update { it.copy(isPlaying = false) }
                 }
+            }
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            _uiState.update {
+                it.copy(
+                    isBuffering = false,
+                    isPlaying = false,
+                    errorMessage = "Error de reproducción: ${error.localizedMessage ?: error.errorCodeName}"
+                )
             }
         }
     }

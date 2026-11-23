@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -170,6 +171,9 @@ fun SettingsDialog(
     onSave: (AppSettings) -> Unit,
     onDismiss: () -> Unit,
     sherpaTtsReady: Boolean = false,
+    sherpaTtsLoading: Boolean = false,
+    sherpaTtsError: String? = null,
+    onSelectSherpaTts: () -> Unit = {},
     onTestSherpaTts: () -> Unit = {},
     onClearTestMessage: () -> Unit = {}
 ) {
@@ -185,6 +189,12 @@ fun SettingsDialog(
     var voiceMenuExpanded by remember { mutableStateOf(false) }
     var llmMenuExpanded by remember { mutableStateOf(false) }
     var embMenuExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(ttsProvider) {
+        if (ttsProvider == TtsProviderType.SHERPA_ONNX_LOCAL && !sherpaTtsReady && !sherpaTtsLoading) {
+            onSelectSherpaTts()
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -206,21 +216,33 @@ fun SettingsDialog(
                     )
                     FilterChip(
                         selected = ttsProvider == TtsProviderType.SHERPA_ONNX_LOCAL,
-                        onClick = { ttsProvider = TtsProviderType.SHERPA_ONNX_LOCAL },
+                        onClick = {
+                            ttsProvider = TtsProviderType.SHERPA_ONNX_LOCAL
+                            onSelectSherpaTts()
+                        },
                         label = {
                             if (ttsProvider == TtsProviderType.SHERPA_ONNX_LOCAL) {
-                                if (sherpaTtsReady) {
-                                    Text(
-                                        text = "● Sherpa-ONNX (español offline) — Listo",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF1B5E20)
-                                    )
-                                } else {
-                                    Text(
-                                        text = "● Sherpa-ONNX (español offline) — No disponible",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFFB71C1C)
-                                    )
+                                when {
+                                    sherpaTtsReady -> {
+                                        Text(
+                                            text = "● Sherpa-ONNX (offline) — Listo",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF1B5E20)
+                                        )
+                                    }
+                                    sherpaTtsError != null && !sherpaTtsLoading -> {
+                                        Text(
+                                            text = "● Sherpa-ONNX (offline) — Error",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFFB71C1C)
+                                        )
+                                    }
+                                    else -> {
+                                        Text(
+                                            text = "● Sherpa-ONNX (offline) — Cargando...",
+                                            style = MaterialTheme.typography.labelSmall
+                                        )
+                                    }
                                 }
                             } else {
                                 Text(
@@ -230,6 +252,8 @@ fun SettingsDialog(
                             }
                         }
                     )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(
                         selected = ttsProvider == TtsProviderType.GEMINI_TTS,
                         onClick = {
@@ -293,7 +317,7 @@ fun SettingsDialog(
                             }
                         }
                     }
-                } else {
+                } else if (ttsProvider == TtsProviderType.GEMINI_TTS || ttsProvider == TtsProviderType.OPENAI_TTS) {
                     OutlinedTextField(
                         value = cloudVoiceName,
                         onValueChange = { cloudVoiceName = it },
@@ -312,22 +336,44 @@ fun SettingsDialog(
                 }
 
                 if (ttsProvider == TtsProviderType.SHERPA_ONNX_LOCAL) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         OutlinedButton(
                             onClick = onTestSherpaTts,
+                            enabled = !sherpaTtsLoading,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Probar voz Sherpa-ONNX")
+                            if (sherpaTtsLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Inicializando...")
+                            } else {
+                                Text("Probar voz Sherpa-ONNX")
+                            }
                         }
                         Text(
-                            text = if (sherpaTtsReady) "Motor listo" else "Cargando modelo...",
+                            text = when {
+                                sherpaTtsReady -> "Motor listo"
+                                sherpaTtsError != null -> "Error"
+                                else -> "Cargando modelo..."
+                            },
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.align(Alignment.CenterVertically)
+                            color = when {
+                                sherpaTtsReady -> Color(0xFF1B5E20)
+                                sherpaTtsError != null -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+                    if (sherpaTtsError != null && !sherpaTtsLoading) {
+                        Text(
+                            text = sherpaTtsError,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
                         )
                     }
                 }

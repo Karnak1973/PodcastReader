@@ -82,7 +82,10 @@ class MainActivity : ComponentActivity() {
                     onSelectBookFromLibrary = viewModel::selectBookFromLibrary,
                     onDismissError = viewModel::clearError,
                     sherpaTtsReady = state.sherpaTtsReady,
+                    sherpaTtsLoading = state.sherpaTtsLoading,
+                    sherpaTtsError = state.sherpaTtsError,
                     sherpaTestMessage = sherpaTestMsg,
+                    onSelectSherpaTts = viewModel::inicializarSherpa,
                     onTestSherpaTts = viewModel::testSherpaTts,
                     onClearTestMessage = viewModel::clearSherpaTestMessage
                 )

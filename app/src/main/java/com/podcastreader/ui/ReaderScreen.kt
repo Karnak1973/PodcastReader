@@ -39,8 +39,10 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -111,7 +113,10 @@ fun ReaderScreen(
     onSelectBookFromLibrary: (LibraryBookEntry) -> Unit,
     onDismissError: () -> Unit,
     sherpaTtsReady: Boolean = false,
+    sherpaTtsLoading: Boolean = false,
+    sherpaTtsError: String? = null,
     sherpaTestMessage: String? = null,
+    onSelectSherpaTts: () -> Unit = {},
     onTestSherpaTts: () -> Unit = {},
     onClearTestMessage: () -> Unit = {}
 ) {
@@ -119,6 +124,7 @@ fun ReaderScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var showSettings by remember { mutableStateOf(false) }
+    var sherpaDialogOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.errorMessage) {
         val msg = state.errorMessage
@@ -130,8 +136,7 @@ fun ReaderScreen(
 
     LaunchedEffect(sherpaTestMessage) {
         if (sherpaTestMessage != null) {
-            snackbarHostState.showSnackbar(sherpaTestMessage)
-            onClearTestMessage()
+            sherpaDialogOpen = true
         }
     }
 
@@ -298,8 +303,36 @@ fun ReaderScreen(
             onSave = onSaveSettings,
             onDismiss = { showSettings = false },
             sherpaTtsReady = sherpaTtsReady,
+            sherpaTtsLoading = sherpaTtsLoading,
+            sherpaTtsError = sherpaTtsError,
+            onSelectSherpaTts = onSelectSherpaTts,
             onTestSherpaTts = onTestSherpaTts,
             onClearTestMessage = onClearTestMessage
+        )
+    }
+
+    if (sherpaDialogOpen && sherpaTestMessage != null) {
+        AlertDialog(
+            onDismissRequest = {
+                sherpaDialogOpen = false
+                onClearTestMessage()
+            },
+            title = {
+                Text("Sherpa-ONNX")
+            },
+            text = {
+                Text(sherpaTestMessage ?: "")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        sherpaDialogOpen = false
+                        onClearTestMessage()
+                    }
+                ) {
+                    Text("Aceptar")
+                }
+            }
         )
     }
 }
