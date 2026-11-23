@@ -109,7 +109,11 @@ fun ReaderScreen(
     onRestartFromBeginning: () -> Unit,
     onOpenCoverScreen: () -> Unit,
     onSelectBookFromLibrary: (LibraryBookEntry) -> Unit,
-    onDismissError: () -> Unit
+    onDismissError: () -> Unit,
+    sherpaTtsReady: Boolean = false,
+    sherpaTestMessage: String? = null,
+    onTestSherpaTts: () -> Unit = {},
+    onClearTestMessage: () -> Unit = {}
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -121,6 +125,13 @@ fun ReaderScreen(
         if (msg != null) {
             snackbarHostState.showSnackbar(msg)
             onDismissError()
+        }
+    }
+
+    LaunchedEffect(sherpaTestMessage) {
+        if (sherpaTestMessage != null) {
+            snackbarHostState.showSnackbar(sherpaTestMessage)
+            onClearTestMessage()
         }
     }
 
@@ -285,7 +296,10 @@ fun ReaderScreen(
             modelsState = state.modelsState,
             onFetchModels = onFetchModels,
             onSave = onSaveSettings,
-            onDismiss = { showSettings = false }
+            onDismiss = { showSettings = false },
+            sherpaTtsReady = sherpaTtsReady,
+            onTestSherpaTts = onTestSherpaTts,
+            onClearTestMessage = onClearTestMessage
         )
     }
 }

@@ -22,11 +22,13 @@ import com.podcastreader.domain.model.SynthesisMode
 import com.podcastreader.domain.parser.UnsupportedBookFormatException
 import com.podcastreader.domain.rag.PlaybackBookmark
 import com.podcastreader.domain.tts.TtsVoiceOption
+import com.podcastreader.domain.tts.VoiceConfig
 import com.podcastreader.voice.VoiceAssistantUiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
@@ -53,7 +55,8 @@ data class MainScreenState(
     val voiceState: VoiceAssistantUiState = VoiceAssistantUiState(),
     val settings: AppSettings = AppSettings(),
     val localVoices: List<TtsVoiceOption> = emptyList(),
-    val modelsState: ModelsFetchState = ModelsFetchState()
+    val modelsState: ModelsFetchState = ModelsFetchState(),
+    val sherpaTtsReady: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -67,6 +70,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _localVoices = MutableStateFlow<List<TtsVoiceOption>>(emptyList())
     private val _library = MutableStateFlow<List<LibraryBookEntry>>(emptyList())
     private val _modelsState = MutableStateFlow(ModelsFetchState())
+    private val _sherpaTestMessage = MutableStateFlow<String?>(null)
+    val sherpaTestMessage: StateFlow<String?> = _sherpaTestMessage.asStateFlow()
     private var wasPlayingBeforeVoice = false
 
     private data class BookLoadState(
@@ -94,7 +99,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             voiceState = voice,
             settings = settings,
             localVoices = _localVoices.value,
-            modelsState = modelsState
+            modelsState = modelsState,
+            sherpaTtsReady = app.sherpaTtsEngine.isReady
         )
     }.stateIn(
         scope = viewModelScope,
@@ -452,5 +458,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun sha256Short(input: String): String {
         val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray())
         return bytes.take(8).joinToString("") { "%02x".format(it) }
+    }
+
+    /** Limpia el mensaje de prueba de Sherpa-ONNX tras mostrarlo en snackbar. */
+    fun clearSherpaTestMessage() {
+        _sherpaTestMessage.value = null
+    }
+
+    /** Prueba Sherpa-ONNX sintetizando una frase corta y devuelve el resultado por snackbar. */
+    fun testSherpaTts() {
+        viewModelScope.launch {
+            if (!app.sherpaTtsEngine.isReady) {
+                _sherpaTestMessage.value = "❌ Sherpa-ONNX no está inicializado. Selecciona 'Sherpa-ONNX (español offline)' en los ajustes y espera a que cargue el modelo."
+                return@launch
+            }
+            val testFile = File(app.cacheDir, "sherpa_test_${System.currentTimeMillis()}.wav")
+            val result = app.ttsEngine.synthesizeToFile(
+                text = "Hola, esta es una prueba de Sherpa ONNX con el modelo Piper en español.",
+                outputFile = testFile,
+                voiceConfig = VoiceConfig(languageTag = "es-ES", rate = 1.0f)
+            )
+            _sherpaTestMessage.value = when {
+                result.isSuccess -> "✅ Sherpa-ONNX funcionando: ${testFile.length()} bytes de audio generados."
+                else -> "❌ Error Sherpa-ONNX: ${result.exceptionOrNull()?.message ?: "desconocido"}"
+            }
+        }
     }
 }

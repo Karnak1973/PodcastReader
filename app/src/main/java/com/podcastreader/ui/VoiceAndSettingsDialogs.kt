@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import com.podcastreader.data.local.AiProviderType
 import com.podcastreader.data.local.ApiSettingsDataStore
 import com.podcastreader.data.local.AppSettings
@@ -167,7 +168,10 @@ fun SettingsDialog(
     modelsState: ModelsFetchState,
     onFetchModels: (AiProviderType, String, String) -> Unit,
     onSave: (AppSettings) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    sherpaTtsReady: Boolean = false,
+    onTestSherpaTts: () -> Unit = {},
+    onClearTestMessage: () -> Unit = {}
 ) {
     var ttsProvider by remember { mutableStateOf(currentSettings.ttsProvider) }
     var androidVoiceName by remember { mutableStateOf(currentSettings.androidVoiceName) }
@@ -203,7 +207,28 @@ fun SettingsDialog(
                     FilterChip(
                         selected = ttsProvider == TtsProviderType.SHERPA_ONNX_LOCAL,
                         onClick = { ttsProvider = TtsProviderType.SHERPA_ONNX_LOCAL },
-                        label = { Text("Sherpa-ONNX (español offline)" ) }
+                        label = {
+                            if (ttsProvider == TtsProviderType.SHERPA_ONNX_LOCAL) {
+                                if (sherpaTtsReady) {
+                                    Text(
+                                        text = "● Sherpa-ONNX (español offline) — Listo",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF1B5E20)
+                                    )
+                                } else {
+                                    Text(
+                                        text = "● Sherpa-ONNX (español offline) — No disponible",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFFB71C1C)
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    text = "Sherpa-ONNX (español offline)",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
                     )
                     FilterChip(
                         selected = ttsProvider == TtsProviderType.GEMINI_TTS,
@@ -284,6 +309,27 @@ fun SettingsDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+
+                if (ttsProvider == TtsProviderType.SHERPA_ONNX_LOCAL) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedButton(
+                            onClick = onTestSherpaTts,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Probar voz Sherpa-ONNX")
+                        }
+                        Text(
+                            text = if (sherpaTtsReady) "Motor listo" else "Cargando modelo...",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.align(Alignment.CenterVertically)
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(4.dp))

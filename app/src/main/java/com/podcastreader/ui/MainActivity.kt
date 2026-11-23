@@ -22,6 +22,7 @@ class MainActivity : ComponentActivity() {
             PodcastReaderTheme {
                 val viewModel: MainViewModel = viewModel()
                 val state by viewModel.uiState.collectAsState()
+                val sherpaTestMsg: String? by viewModel.sherpaTestMessage.collectAsState()
 
                 val openDocumentLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.OpenDocument()
@@ -79,7 +80,11 @@ class MainActivity : ComponentActivity() {
                     onRestartFromBeginning = viewModel::restartFromBeginning,
                     onOpenCoverScreen = viewModel::openCoverScreen,
                     onSelectBookFromLibrary = viewModel::selectBookFromLibrary,
-                    onDismissError = viewModel::clearError
+                    onDismissError = viewModel::clearError,
+                    sherpaTtsReady = state.sherpaTtsReady,
+                    sherpaTestMessage = sherpaTestMsg,
+                    onTestSherpaTts = viewModel::testSherpaTts,
+                    onClearTestMessage = viewModel::clearSherpaTestMessage
                 )
             }
         }
