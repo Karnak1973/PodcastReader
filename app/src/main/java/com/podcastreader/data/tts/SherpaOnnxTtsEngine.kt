@@ -2,6 +2,7 @@ package com.podcastreader.data.tts
 
 import android.content.Context
 import android.content.res.AssetManager
+import android.util.Log
 import com.k2fsa.sherpa.onnx.*
 import com.podcastreader.domain.tts.TtsEngine
 import com.podcastreader.domain.tts.VoiceConfig
@@ -39,6 +40,11 @@ class SherpaOnnxTtsEngine(private val context: Context) : TtsEngine {
     override var isReady: Boolean = false
         private set
 
+    /** Último error de inicialización, para mostrar en la UI de diagnóstico. */
+    @Volatile
+    var lastInitError: String? = null
+        private set
+
     private var tts: OfflineTts? = null
 
     // Pausas de estilo audiolibro (milissegundos).
@@ -47,7 +53,19 @@ class SherpaOnnxTtsEngine(private val context: Context) : TtsEngine {
 
     override suspend fun initialize(): Boolean = withContext(Dispatchers.IO) {
         runCatching {
+            Log.d("SherpaTTS", "Inicializando Sherpa-ONNX. modelDir=$modelDir")
+            Log.d("SherpaTTS", "ONNX existe: ${File(modelDir, MODEL_FILE).exists()}, size=${File(modelDir, MODEL_FILE).length()}")
+            Log.d("SherpaTTS", "tokens existe: ${File(modelDir, TOKENS_FILE).exists()}, size=${File(modelDir, TOKENS_FILE).length()}")
+            Log.d("SherpaTTS", "espeak-ng-data existe: ${File(modelDir, "espeak-ng-data").exists()}")
+            if (File(modelDir, "espeak-ng-data").exists()) {
+                Log.d("SherpaTTS", "espeak-ng-data archivos: ${File(modelDir, "espeak-ng-data").list()?.size ?: 0}")
+            }
+
             ensureModelFilesCopied()
+
+            Log.d("SherpaTTS", "Después de copiar - ONNX existe: ${File(modelDir, MODEL_FILE).exists()}, size=${File(modelDir, MODEL_FILE).length()}")
+            Log.d("SherpaTTS", "Después de copiar - tokens existe: ${File(modelDir, TOKENS_FILE).exists()}, size=${File(modelDir, TOKENS_FILE).length()}")
+            Log.d("SherpaTTS", "Después de copiar - espeak-ng-data existe: ${File(modelDir, "espeak-ng-data").exists()}")
 
             val vitsConfig = OfflineTtsVitsModelConfig(
                 model = "${modelDir.absolutePath}/$MODEL_FILE",
@@ -67,10 +85,14 @@ class SherpaOnnxTtsEngine(private val context: Context) : TtsEngine {
 
             val config = OfflineTtsConfig(model = modelConfig)
             tts = OfflineTts(assetManager = null, config = config) // assetManager = null: lee de filesDir
+            lastInitError = null
             isReady = true
+            Log.d("SherpaTTS", "Sherpa-ONNX inicializado correctamente")
             true
         }.getOrElse { error ->
             isReady = false
+            lastInitError = error.message ?: error.toString()
+            Log.e("SherpaTTS", "Error inicializando Sherpa-ONNX: $lastInitError")
             error.printStackTrace()
             false
         }
@@ -166,6 +188,7 @@ class SherpaOnnxTtsEngine(private val context: Context) : TtsEngine {
     private fun copyAssetsRecursively(assetManager: AssetManager, assetPath: String, destDir: File) {
         val entries = assetManager.list(assetPath) ?: return
         destDir.mkdirs()
+        Log.d("SherpaTTS", "Copiando assets: $assetPath -> ${entries.size} entradas")
         for (entry in entries) {
             val childAssetPath = if (assetPath.isEmpty()) entry else "$assetPath/$entry"
             val childDest = File(destDir, entry)
@@ -173,6 +196,7 @@ class SherpaOnnxTtsEngine(private val context: Context) : TtsEngine {
             if (assetManager.list(childAssetPath) != null) {
                 copyAssetsRecursively(assetManager, childAssetPath, childDest)
             } else {
+                Log.d("SherpaTTS", "  Archivo: $childAssetPath")
                 assetManager.open(childAssetPath).use { input ->
                     childDest.outputStream().use { output ->
                         input.copyTo(output)

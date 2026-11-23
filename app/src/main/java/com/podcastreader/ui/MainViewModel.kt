@@ -469,7 +469,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun testSherpaTts() {
         viewModelScope.launch {
             if (!app.sherpaTtsEngine.isReady) {
-                _sherpaTestMessage.value = "❌ Sherpa-ONNX no está inicializado. Selecciona 'Sherpa-ONNX (español offline)' en los ajustes y espera a que cargue el modelo."
+                val error = app.sherpaTtsEngine.lastInitError
+                _sherpaTestMessage.value = if (error != null) {
+                    "❌ Sherpa-ONNX no se pudo inicializar:\n$error\n\nCausas comunes:\n• Falta es_ES-davefx-medium.onnx en assets/tts-model/\n• Falta tokens.txt en assets/tts-model/\n• La carpeta espeak-ng-data/ está vacía o incompleta\n• El archivo .aar no está en app/libs/"
+                } else {
+                    "❌ Sherpa-ONNX no está inicializado. Selecciona 'Sherpa-ONNX (español offline)' en los ajustes y espera a que cargue el modelo."
+                }
                 return@launch
             }
             val testFile = File(app.cacheDir, "sherpa_test_${System.currentTimeMillis()}.wav")
